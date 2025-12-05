@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SIMULATION // Storyteller Interface</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        mono: ['"JetBrains Mono"', 'monospace'],
+                        sans: ['"Inter"', 'sans-serif'],
+                    },
+                    colors: {
+                        sim: {
+                            bg: '#09090b',
+                            panel: '#18181b',
+                            border: '#27272a',
+                            accent: '#6366f1',
+                            text: '#e4e4e7',
+                            muted: '#a1a1aa'
+                        }
+                    },
+                    animation: {
+                        'fade-in': 'fadeIn 0.4s ease-out',
+                        'slide-in': 'slideIn 0.3s ease-out',
+                        'blink': 'blink 1s step-end infinite',
+                    },
+                    keyframes: {
+                        fadeIn: {
+                            '0%': { opacity: '0' },
+                            '100%': { opacity: '1' },
+                        },
+                        slideIn: {
+                            '0%': { transform: 'translateX(-20px)', opacity: '0' },
+                            '100%': { transform: 'translateX(0)', opacity: '1' },
+                        },
+                        blink: {
+                            '0%, 100%': { opacity: '1' },
+                            '50%': { opacity: '0' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Base Styles */
+        body {
+            background-color: #09090b;
+            color: #e4e4e7;
+            height: 100vh;
+            height: 100dvh;
+            overflow: hidden;
+        }
+
+        /* Noise Texture Overlay */
+        .noise-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none;
+            z-index: 50;
+            opacity: 0.03;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+        }
+
+        /* Scrollbars */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #52525b; }
+
+        /* Typography */
+        .story-text p { margin-bottom: 0.8em; line-height: 1.6; }
+        .story-text p:last-child { margin-bottom: 0; }
+        .story-text em { color: #a5b4fc; font-style: italic; }
+        .story-text strong { color: #fff; font-weight: 600; }
+        
+        /* Cursor for typing effect */
+        .typing-cursor::after {
+            content: '▋';
+            display: inline-block;
+            vertical-align: middle;
+            color: #6366f1;
+            animation: blink 1s step-end infinite;
+            margin-left: 2px;
+            font-size: 0.8em;
+        }
+        .typing-done::after {
+            display: none;
+        }
+
+        /* Glassmorphism utilities */
+        .glass {
+            background: rgba(24, 24, 27, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+    </style>
+</head>
+<body class="flex text-sm md:text-base font-sans selection:bg-indigo-500/30">
+    <div class="noise-overlay"></div>
+
+    <!-- SIDEBAR -->
+    <aside id="sidebar" class="w-72 bg-sim-panel border-r border-sim-border flex flex-col shrink-0 transform -translate-x-full md:translate-x-0 transition-transform duration-300 absolute md:relative h-full z-40 shadow-2xl md:shadow-none">
+        <!-- Logo Area -->
+        <div class="h-16 flex items-center px-6 border-b border-sim-border">
+            <div class="w-3 h-3 bg-indigo-500 rounded-sm mr-3 shadow-[0_0_10px_rgba(99,102,241,0.5)]"></div>
+            <h1 class="font-mono font-bold tracking-[0.2em] text-gray-200">SIMULATION</h1>
+        </div>
+
+        <!-- Main Nav -->
+        <nav class="p-4 space-y-1 flex-1 overflow-y-auto">
+            <button onclick="showNewGameScreen()" class="w-full flex items-center gap-3 px-3 py-2.5 text-gray-400 hover:text-white hover:bg-white/5 rounded-lg transition-all group">
+                <i class="ph ph-plus-circle text-lg group-hover:text-indigo-400"></i>
+                <span class="font-medium">Новая симуляция</span>
+            </button>
+
+            <div class="pt-6 pb-2 px-3">
+                <p class="text-[10px] font-mono uppercase text-gray-600 tracking-wider font-bold">Архивы памяти</p>
+            </div>
+            
+            <!-- Saves List -->
+            <div id="saves-list" class="space-y-1">
+                <div class="px-3 py-4 text-center text-xs text-gray-600 italic">Нет сохраненных миров</div>
+            </div>
+        </nav>
+
+        <!-- Footer -->
+        <div class="p-4 border-t border-sim-border bg-black/20">
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-600 flex items-center justify-center text-xs font-bold text-white">
+                    U
+                </div>
+                <div>
+                    <div class="text-xs font-bold text-gray-300">USER_01</div>
+                    <div class="text-[10px] text-gray-500 font-mono">STATUS: CONNECTED</div>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- MAIN CONTENT AREA -->
+    <div class="flex-1 flex flex-col h-full relative bg-sim-bg">
+        
+        <!-- Top Bar -->
+        <header class="h-16 border-b border-sim-border flex items-center justify-between px-4 md:px-8 bg-sim-bg/80 backdrop-blur-sm z-30 shrink-0">
+            <div class="flex items-center gap-4">
+                <button onclick="toggleSidebar()" class="md:hidden text-gray-400 hover:text-white">
+                    <i class="ph ph-list text-2xl"></i>
+                </button>
+                <div id="session-header" class="hidden animate-fade-in">
+                    <h2 id="session-title" class="font-bold text-gray-200 text-sm md:text-base tracking-tight truncate max-w-[200px] md:max-w-md">Без названия</h2>
+                    <div class="flex items-center gap-2">
+                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                        <span class="text-[10px] font-mono text-gray-500 uppercase tracking-widest">Live Session</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-2">
+                <button id="save-btn" onclick="saveCurrentGame(true)" class="hidden items-center gap-2 px-3 py-1.5 text-xs font-mono text-gray-400 hover:text-indigo-400 border border-sim-border hover:border-indigo-500/30 rounded transition bg-sim-panel">
+                    <i class="ph ph-floppy-disk"></i>
+                    <span class="hidden md:inline">СОХРАНИТЬ</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- VIEW: NEW GAME / SETUP -->
+        <main id="view-setup" class="flex-1 overflow-y-auto p-4 md:p-10 flex flex-col items-center justify-center relative">
+            <div class="w-full max-w-2xl animate-fade-in">
+                
+                <div class="text-center mb-10">
+                    <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 text-indigo-400 text-xs font-mono border border-indigo-500/20 mb-4">
+                        <span class="animate-pulse">●</span> SYSTEM READY
+                    </div>
+                    <h2 class="text-4xl md:text-5xl font-bold text-white mb-4 tracking-tight">Инициализация</h2>
+                    <p class="text-gray-500 text-lg">Опишите мир или создайте случайный</p>
+                </div>
+
+                <div class="glass rounded-2xl p-1 shadow-2xl">
+                    <div class="bg-sim-bg/50 rounded-xl p-6 md:p-8 border border-white/5">
+                        <div class="mb-6 relative">
+                            <div class="flex justify-between items-center mb-2">
+                                <label class="text-[11px] font-mono uppercase text-gray-500 tracking-widest font-semibold">Сценарий / Вводные данные</label>
+                                <button onclick="generateRandomPrompt()" class="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1 transition">
+                                    <i class="ph ph-shuffle"></i> Случайный мир
+                                </button>
+                            </div>
+                            <textarea id="custom-prompt" rows="3" 
+                                class="w-full bg-black/30 border border-sim-border rounded-lg p-4 text-gray-200 focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 transition resize-none font-mono text-sm leading-relaxed" 
+                                placeholder="Опишите мир, в который хотите погрузиться..."></textarea>
+                        </div>
+                        <button onclick="startGame()" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-mono font-bold py-4 rounded-lg shadow-lg shadow-indigo-500/20 transition-all active:scale-[0.99] flex justify-center items-center gap-3 tracking-widest text-sm">
+                            ЗАПУСТИТЬ СИМУЛЯЦИЮ <i class="ph ph-caret-right"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- VIEW: GAME / CHAT -->
+        <main id="view-game" class="hidden flex-1 flex-col relative h-full overflow-hidden">
+            
+            <!-- Chat Stream -->
+            <div id="story-scroll-area" class="flex-1 overflow-y-auto px-4 py-6 scroll-smooth">
+                <div id="story-content" class="w-full max-w-3xl mx-auto space-y-8">
+                    <!-- Dynamic Content -->
+                </div>
+                <div class="h-4"></div>
+            </div>
+
+            <!-- Bottom Controls -->
+            <div class="shrink-0 z-20 bg-sim-panel border-t border-sim-border px-4 py-6 md:py-8 shadow-[0_-10px_40px_rgba(0,0,0,0.5)]">
+                <div class="max-w-3xl mx-auto">
+                    
+                    <!-- AI Loading State -->
+                    <div id="loader" class="hidden mb-4 animate-fade-in text-center">
+                        <div class="inline-flex items-center gap-3 text-indigo-400 bg-indigo-500/5 px-4 py-1.5 rounded-full border border-indigo-500/10">
+                            <span class="text-[10px] font-mono uppercase tracking-widest">Storyteller печатает...</span>
+                        </div>
+                    </div>
+
+                    <!-- Choices Grid -->
+                    <div id="choices-container" class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <!-- Buttons -->
+                    </div>
+                </div>
+            </div>
+        </main>
+
+    </div>
+
+    <!-- OVERLAY -->
+    <div id="sidebar-overlay" onclick="toggleSidebar()" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-30 hidden md:hidden fade-in"></div>
+
+    <script>
+        // --- CONSTANTS ---
+        const API_KEYS = [
+            "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",
+            "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",
+            "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"
+        ];
+        
+        const CONFIG = {
+            url: "https://openrouter.ai/api/v1/chat/completions",
+            model: "deepseek/deepseek-chat",
+            systemPrompt: `Ты Storyteller, ИИ-рассказчик в приложении SIMULATION. 
+            Веди игрока через интерактивную историю на русском языке.
+            
+            ФОРМАТ ОТВЕТА:
+            {"story": "Текст истории...", "choices": ["Действие 1", "Действие 2", "Действие 3"]}
+            
+            ТРЕБОВАНИЯ:
+            1. Возвращай только валидный JSON, без пояснений
+            2. История: 2-3 абзаца, атмосферно, с элементами сюжета
+            3. Выборы: 2-3 варианта, краткие и понятные
+            4. Не используй markdown, только чистый текст
+            5. Поддерживай контекст предыдущих действий`
+        };
+
+        // --- STATE ---
+        let appState = {
+            currentSessionId: null,
+            history: [],
+            isLoading: false,
+            keyIndex: 0
+        };
+
+        // --- DOM ---
+        const el = {
+            viewSetup: document.getElementById('view-setup'),
+            viewGame: document.getElementById('view-game'),
+            storyContent: document.getElementById('story-content'),
+            choicesContainer: document.getElementById('choices-container'),
+            customPrompt: document.getElementById('custom-prompt'),
+            loader: document.getElementById('loader'),
+            savesList: document.getElementById('saves-list'),
+            sessionHeader: document.getElementById('session-header'),
+            sessionTitle: document.getElementById('session-title'),
+            storyScroll: document.getElementById('story-scroll-area'),
+            saveBtn: document.getElementById('save-btn'),
+            sidebar: document.getElementById('sidebar'),
+            sidebarOverlay: document.getElementById('sidebar-overlay')
+        };
+
+        window.onload = () => {
+            renderSavesList();
+        };
+
+        // --- NAVIGATION ---
+        function showNewGameScreen() {
+            el.viewGame.classList.add('hidden');
+            el.viewSetup.classList.remove('hidden');
+            el.sessionHeader.classList.add('hidden');
+            el.saveBtn.classList.add('hidden');
+            el.customPrompt.value = '';
+            appState.currentSessionId = null;
+            if (window.innerWidth < 768) toggleSidebar(false);
+        }
+
+        function toggleSidebar(force) {
+            const isOpen = !el.sidebar.classList.contains('-translate-x-full');
+            const shouldOpen = force !== undefined ? force : !isOpen;
+            if (shouldOpen) {
+                el.sidebar.classList.remove('-translate-x-full');
+                el.sidebarOverlay.classList.remove('hidden');
+            } else {
+                el.sidebar.classList.add('-translate-x-full');
+                el.sidebarOverlay.classList.add('hidden');
+            }
+        }
+
+        // --- RANDOM WORLD GENERATION VIA AI ---
+        async function generateRandomPrompt() {
+            const button = document.querySelector('button[onclick="generateRandomPrompt()"]');
+            const originalText = button.innerHTML;
+            button.innerHTML = '<i class="ph ph-circle-notch animate-spin"></i> Генерация...';
+            button.disabled = true;
+
+            try {
+                const randomPrompt = await fetchRandomWorld();
+                if (randomPrompt) {
+                    el.customPrompt.value = randomPrompt;
+                    el.customPrompt.focus();
+                }
+            } catch (error) {
+                console.error("Ошибка генерации мира:", error);
+                // Fallback prompts if AI fails
+                const fallbackPrompts = [
+                    "Подземелья Москвы. Вы диггер, который нашел станцию метро, которой нет на картах.",
+                    "2150 год. Марс. Кислородная ферма. Вы обнаружили, что растения шепчут координаты.",
+                    "Средневековая алхимия. Вы создали гомункула, но он знает слишком много о будущем.",
+                    "Вы — призрак в старинном особняке, пытающийся напугать новых жильцов, но они вас не боятся.",
+                    "Мир, где сны записываются на видеокассеты. Вы нашли кассету с чужим кошмаром.",
+                    "Киберпанк-курьер. Посылка тикает, а заказчик мертв.",
+                ];
+                const randomFallback = fallbackPrompts[Math.floor(Math.random() * fallbackPrompts.length)];
+                el.customPrompt.value = randomFallback;
+            } finally {
+                button.innerHTML = originalText;
+                button.disabled = false;
+            }
+        }
+
+        async function fetchRandomWorld() {
+            const messages = [
+                {
+                    role: "system",
+                    content: "Ты креативный писатель. Придумай краткий, но атмосферный сеттинг для интерактивной истории (1-2 предложения). Не используй markdown и не обрамляй в кавычки."
+                },
+                {
+                    role: "user",
+                    content: "Придумай интересный сеттинг для интерактивной истории."
+                }
+            ];
+
+            const tryKey = async (idx) => {
+                if (idx >= API_KEYS.length) throw new Error("Connection Failed");
+                try {
+                    const res = await fetch(CONFIG.url, {
+                        method: "POST",
+                        headers: {
+                            "Authorization": `Bearer ${API_KEYS[idx]}`,
+                            "Content-Type": "application/json",
+                            "HTTP-Referer": window.location.href,
+                            "X-Title": "SimulationStoryteller"
+                        },
+                        body: JSON.stringify({
+                            model: CONFIG.model,
+                            messages: messages,
+                            temperature: 1.0,
+                            max_tokens: 100
+                        })
+                    });
+                    if (!res.ok) throw new Error("API Error");
+                    const data = await res.json();
+                    return data.choices[0].message.content.trim();
+                } catch (e) {
+                    return tryKey(idx + 1);
+                }
+            };
+            return tryKey(appState.keyIndex);
+        }
+
+        // --- GAME ENGINE ---
+        async function startGame() {
+            const prompt = el.customPrompt.value.trim();
+            if (!prompt) return el.customPrompt.classList.add('animate-pulse');
+
+            el.viewSetup.classList.add('hidden');
+            el.viewGame.classList.remove('hidden');
+            el.viewGame.classList.add('flex');
+            el.sessionHeader.classList.remove('hidden');
+            el.saveBtn.classList.remove('hidden');
+            
+            const title = prompt.length > 30 ? prompt.substring(0, 30) + "..." : prompt;
+            el.sessionTitle.innerText = title;
+            
+            appState.currentSessionId = Date.now().toString();
+            appState.history = [
+                { role: "system", content: CONFIG.systemPrompt },
+                { role: "user", content: `Начни историю в сеттинге: "${prompt}". Сделай введение и представь первую ситуацию.` }
+            ];
+            
+            el.storyContent.innerHTML = '';
+            saveCurrentGame(false);
+
+            await makeMove();
+        }
+
+        async function makeMove(userAction = null) {
+            if (appState.isLoading) return;
+            setLoading(true);
+
+            if (userAction) {
+                appState.history.push({ role: "user", content: userAction });
+                addMessageToUI('user', userAction, false);
+            }
+
+            scrollToBottom();
+
+            try {
+                const data = await fetchAI(appState.history);
+                const gameData = parseAIResponse(data);
+
+                if (gameData.story && gameData.choices) {
+                    appState.history.push({ role: "assistant", content: JSON.stringify(gameData) });
+                    
+                    // AI typing effect ON
+                    await addMessageToUI('storyteller', gameData.story, true); 
+                    renderChoices(gameData.choices);
+                    
+                    saveCurrentGame(false);
+                } else {
+                    throw new Error("Invalid response format");
+                }
+            } catch (err) {
+                addMessageToUI('error', "Ошибка связи. Попробуйте снова.", false);
+                renderChoices(["Попробовать снова"]);
+                console.error(err);
+            } finally {
+                setLoading(false);
+                scrollToBottom();
+            }
+        }
+
+        // --- UI & TYPING EFFECT ---
+        async function addMessageToUI(type, text, animate = false) {
+            const div = document.createElement('div');
+            div.className = `story-msg w-full mb-6 ${type === 'user' ? 'flex justify-end' : 'flex justify-start'}`;
+            
+            if (type === 'user') {
+                div.innerHTML = `
+                    <div class="bg-indigo-600/90 text-white px-5 py-3 rounded-2xl rounded-tr-sm max-w-[85%] shadow-lg backdrop-blur-sm border border-indigo-500/50 animate-slide-in">
+                        <p class="text-sm md:text-base leading-relaxed">${text}</p>
+                    </div>
+                `;
+                el.storyContent.appendChild(div);
+            } else if (type === 'error') {
+                 div.innerHTML = `<div class="w-full text-center text-red-400 text-xs font-mono uppercase border border-red-500/20 py-2 rounded bg-red-900/10">${text}</div>`;
+                 el.storyContent.appendChild(div);
+            } else {
+                // Storyteller
+                const contentDivId = `msg-${Date.now()}`;
+                div.innerHTML = `
+                    <div class="max-w-full md:max-w-[90%]">
+                        <div class="flex items-center gap-2 mb-2 opacity-60 pl-1">
+                            <i class="ph ph-sparkle text-indigo-400 text-xs"></i>
+                            <span class="text-[10px] font-mono font-bold uppercase tracking-wider text-indigo-300">Storyteller</span>
+                        </div>
+                        <div id="${contentDivId}" class="text-gray-200 text-base md:text-lg leading-relaxed font-light story-text content min-h-[1.5em] ${animate ? 'typing-cursor' : 'typing-done'}">
+                            ${animate ? '' : formatText(text)}
+                        </div>
+                    </div>
+                `;
+                el.storyContent.appendChild(div);
+
+                if (animate) {
+                    await typeWriter(document.getElementById(contentDivId), formatText(text));
+                    document.getElementById(contentDivId).classList.remove('typing-cursor');
+                    document.getElementById(contentDivId).classList.add('typing-done');
+                }
+            }
+        }
+
+        function formatText(text) {
+            return text
+                .replace(/\n/g, '<br>')
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                .replace(/\*(.*?)\*/g, '<em>$1</em>');
+        }
+
+        async function typeWriter(element, html) {
+            const parts = html.split(/(<[^>]*>)/);
+            
+            for (const part of parts) {
+                if (part.startsWith('<')) {
+                    element.innerHTML += part;
+                } else {
+                    for (const char of part) {
+                        element.innerHTML += char;
+                        scrollToBottom();
+                        await new Promise(r => setTimeout(r, 5));
+                    }
+                }
+                if (part.trim().endsWith('.') || part.trim().endsWith('!')) {
+                    await new Promise(r => setTimeout(r, 100));
+                }
+            }
+        }
+
+        // --- PARSING (Optimized) ---
+        function parseAIResponse(data) {
+            let content = data.choices[0].message.content;
+            
+            // Remove potential AI thinking tags
+            content = content.replace(/<think>[\s\S]*?<\/think>/gi, '');
+            
+            // Extract JSON - find first { and last }
+            const firstBrace = content.indexOf('{');
+            const lastBrace = content.lastIndexOf('}');
+            
+            if (firstBrace !== -1 && lastBrace !== -1) {
+                content = content.substring(firstBrace, lastBrace + 1);
+            }
+
+            try {
+                return JSON.parse(content);
+            } catch (e) {
+                console.warn("JSON parsing failed, using fallback");
+                return { 
+                    story: content.length > 10 ? content : "История продолжается...", 
+                    choices: ["Продолжить", "Исследовать", "Спросить"] 
+                };
+            }
+        }
+
+        // --- SAVE SYSTEM ---
+        function saveCurrentGame(notify = true) {
+            if (!appState.currentSessionId) return;
+
+            const saves = getSaves();
+            const sessionTitle = el.sessionTitle.innerText;
+            
+            const saveObj = {
+                id: appState.currentSessionId,
+                title: sessionTitle,
+                timestamp: Date.now(),
+                history: appState.history,
+                lastText: document.querySelector('.story-msg:last-child .content')?.innerText.substring(0, 50) + "..." || "Начало"
+            };
+
+            const existingIndex = saves.findIndex(s => s.id === appState.currentSessionId);
+            if (existingIndex >= 0) {
+                saves[existingIndex] = saveObj;
+            } else {
+                saves.unshift(saveObj);
+            }
+
+            localStorage.setItem('simulation_saves', JSON.stringify(saves));
+            renderSavesList();
+
+            if (notify) {
+                const btnIcon = el.saveBtn.querySelector('i');
+                if(btnIcon) {
+                    const originalClass = btnIcon.className;
+                    btnIcon.className = "ph ph-check text-green-400";
+                    setTimeout(() => btnIcon.className = originalClass, 1500);
+                }
+            }
+        }
+
+        function getSaves() {
+            const raw = localStorage.getItem('simulation_saves');
+            return raw ? JSON.parse(raw) : [];
+        }
+
+        function loadGame(id) {
+            const saves = getSaves();
+            const save = saves.find(s => s.id === id);
+            
+            if (!save) return;
+
+            appState.currentSessionId = save.id;
+            appState.history = save.history;
+            
+            el.viewSetup.classList.add('hidden');
+            el.viewGame.classList.remove('hidden');
+            el.viewGame.classList.add('flex');
+            el.sessionHeader.classList.remove('hidden');
+            el.saveBtn.classList.remove('hidden');
+            el.sessionTitle.innerText = save.title;
+            
+            el.storyContent.innerHTML = '';
+
+            // Reconstruct UI
+            appState.history.forEach(msg => {
+                if (msg.role === 'user' && !msg.content.includes("Начни историю в сеттинге")) {
+                    addMessageToUI('user', msg.content, false);
+                } else if (msg.role === 'assistant') {
+                    try {
+                        const parsed = JSON.parse(msg.content);
+                        addMessageToUI('storyteller', parsed.story, false);
+                        
+                        if (msg === appState.history[appState.history.length - 1]) {
+                            renderChoices(parsed.choices);
+                        }
+                    } catch(e) { console.log(e) }
+                }
+            });
+
+            scrollToBottom();
+            if (window.innerWidth < 768) toggleSidebar(false);
+        }
+
+        function deleteSave(e, id) {
+            e.stopPropagation();
+            if(!confirm("Удалить эту симуляцию навсегда?")) return;
+            let saves = getSaves();
+            saves = saves.filter(s => s.id !== id);
+            localStorage.setItem('simulation_saves', JSON.stringify(saves));
+            renderSavesList();
+            if (appState.currentSessionId === id) showNewGameScreen();
+        }
+
+        function renderSavesList() {
+            const saves = getSaves();
+            el.savesList.innerHTML = '';
+
+            if (saves.length === 0) {
+                el.savesList.innerHTML = `<div class="px-3 py-4 text-center text-xs text-gray-600 italic">Нет записей</div>`;
+                return;
+            }
+
+            saves.sort((a,b) => b.timestamp - a.timestamp).forEach(save => {
+                const date = new Date(save.timestamp).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+                const div = document.createElement('div');
+                div.className = "group relative flex items-center justify-between p-3 rounded-lg hover:bg-white/5 cursor-pointer transition border border-transparent hover:border-white/5";
+                div.onclick = () => loadGame(save.id);
+                
+                div.innerHTML = `
+                    <div class="overflow-hidden">
+                        <div class="text-xs font-bold text-gray-300 truncate group-hover:text-indigo-300 transition-colors">${save.title}</div>
+                        <div class="text-[10px] text-gray-600 flex items-center gap-2 mt-1">
+                            <span>${date}</span>
+                            <span class="w-1 h-1 rounded-full bg-gray-600"></span>
+                            <span class="truncate max-w-[80px]">${save.history.length} ходов</span>
+                        </div>
+                    </div>
+                    <button onclick="deleteSave(event, '${save.id}')" class="opacity-0 group-hover:opacity-100 p-1.5 text-gray-500 hover:text-red-400 transition">
+                        <i class="ph ph-trash"></i>
+                    </button>
+                `;
+                el.savesList.appendChild(div);
+            });
+        }
+
+        // --- OPTIMIZED API REQUESTS ---
+        async function fetchAI(messages) {
+            const tryKey = async (idx) => {
+                if (idx >= API_KEYS.length) throw new Error("Connection Failed");
+                try {
+                    const res = await fetch(CONFIG.url, {
+                        method: "POST",
+                        headers: {
+                            "Authorization": `Bearer ${API_KEYS[idx]}`,
+                            "Content-Type": "application/json",
+                            "HTTP-Referer": window.location.href,
+                            "X-Title": "SimulationStoryteller"
+                        },
+                        body: JSON.stringify({
+                            model: CONFIG.model,
+                            messages: messages.slice(-6), // Keep only last 6 messages for context
+                            temperature: 0.7,
+                            max_tokens: 800
+                        })
+                    });
+                    if (!res.ok) throw new Error("API Error");
+                    return await res.json();
+                } catch (e) {
+                    appState.keyIndex = (appState.keyIndex + 1) % API_KEYS.length;
+                    return tryKey(appState.keyIndex);
+                }
+            };
+            return tryKey(appState.keyIndex);
+        }
+
+        // --- HELPER ---
+        function renderChoices(choices) {
+            el.choicesContainer.innerHTML = '';
+            if(!choices || !choices.length) choices = ["Продолжить", "Исследовать", "Спросить"];
+
+            choices.forEach((choice) => {
+                const btn = document.createElement('button');
+                btn.className = "text-left bg-white/5 hover:bg-white/10 border border-white/10 hover:border-indigo-500/50 p-4 rounded-xl transition-all active:scale-[0.98] group";
+                btn.onclick = () => makeMove(choice);
+                btn.innerHTML = `
+                    <div class="flex items-center justify-between">
+                        <span class="text-sm font-medium text-gray-300 group-hover:text-white">${choice}</span>
+                        <i class="ph ph-caret-right text-gray-600 group-hover:text-indigo-400 transition-colors"></i>
+                    </div>
+                `;
+                el.choicesContainer.appendChild(btn);
+            });
+        }
+
+        function setLoading(isLoading) {
+            appState.isLoading = isLoading;
+            el.loader.classList.toggle('hidden', !isLoading);
+            const btns = el.choicesContainer.querySelectorAll('button');
+            btns.forEach(b => {
+                if(isLoading) {
+                    b.classList.add('opacity-50', 'pointer-events-none');
+                }
+            });
+        }
+
+        function scrollToBottom() {
+            if(el.storyScroll) {
+                requestAnimationFrame(() => {
+                    el.storyScroll.scrollTop = el.storyScroll.scrollHeight;
+                });
+            }
+        }
+    </script>
+</body>
+</html>
